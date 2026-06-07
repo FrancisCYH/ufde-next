@@ -11,6 +11,7 @@ import {
   Group,
   Select,
   Alert,
+  ScrollArea,
 } from '@mantine/core';
 import { TbFolder, TbFile, TbCircuitGround, TbInfoCircle, TbPlayerPlay, TbBooks } from 'react-icons/tb';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -265,10 +266,11 @@ function VerificationPage() {
 
   return (
     <Container fluid p="md" h="100%">
-      <Title order={2} mb="md">{t('verification.title')}</Title>
-      <Text c="dimmed" mb="lg">{t('verification.subtitle')}</Text>
+      <ScrollArea h="calc(100vh - 80px)">
+        <Title order={2} mb="md">{t('verification.title')}</Title>
+        <Text c="dimmed" mb="lg">{t('verification.subtitle')}</Text>
 
-      <Stack gap="md" h="calc(100% - 80px)">
+        <Stack gap="md">
         <Card shadow="sm" withBorder>
           <Stack gap="md">
             {/* Simulation netlist selection */}
@@ -411,6 +413,7 @@ function VerificationPage() {
           </Button>
         </Group>
       </Stack>
+    </ScrollArea>
     </Container>
   );
 }
