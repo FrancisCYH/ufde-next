@@ -1,0 +1,77 @@
+name: build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout FDE source
+        uses: actions/checkout@v4
+        with:
+          repository: 0xtaruhi/FDE-Source
+          path: FDE-Source
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libusb-1.0-0-dev \
+            libboost-all-dev \
+            qtbase5-dev \
+            flex \
+            bison \
+            cmake \
+            ninja-build \
+            clang \
+            pkg-config \
+            yosys
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Prepare Linux sidecars
+        shell: bash
+        env:
+          FDE_SOURCE_DIR: ${{ github.workspace }}/FDE-Source
+          UFDE_BUILD_FDE_VIEWER: '1'
+        run: ./scripts/prepare-tauri-sidecars.sh --target x86_64-unknown-linux-gnu --platform linux
+
+      - name: Clippy app
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: Clippy sidecar tools
+        run: cargo clippy --manifest-path src-tauri/ip-tools/Cargo.toml --all-targets -- -D warnings

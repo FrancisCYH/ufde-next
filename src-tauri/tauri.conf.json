@@ -30,13 +30,16 @@
       "binaries/fde-cli/place",
       "binaries/fde-cli/route",
       "binaries/fde-cli/sta",
+      "binaries/fde-cli/viewer",
       "binaries/yosys",
-      "binaries/yosys-abc"
+      "binaries/yosys-abc",
+      "binaries/ip-generator/ip_generator",
+      "binaries/ip-generator/img2mif"
     ]
   },
   "productName": "UFDE+",
   "mainBinaryName": "UFDE+",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "identifier": "com.fudan.eda.ufdeplus.dev",
   "plugins": {},
   "app": {
