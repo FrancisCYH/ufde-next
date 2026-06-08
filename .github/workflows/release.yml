@@ -61,6 +61,13 @@ jobs:
           repository: 0xtaruhi/FDE-Source
           path: FDE-Source
 
+      - name: Checkout IP-Generator source
+        if: matrix.platform == 'linux'
+        uses: actions/checkout@v4
+        with:
+          repository: FrancisCYH/IP-Generator
+          path: IP-Generator
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -90,15 +97,51 @@ jobs:
             patchelf \
             libusb-1.0-0-dev \
             libboost-all-dev \
-            qtbase5-dev \
             flex \
             bison \
             clang \
             gawk \
             pkg-config \
             libffi-dev \
-            zlib1g-dev \
-            yosys
+            libreadline-dev \
+            tcl-dev \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev
+
+      - name: Install Qt 5.14.2
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get install -y python3-pip
+          pip3 install aqtinstall pyinstaller jinja2 Pillow
+          echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+          source ~/.bashrc
+          mkdir -p ~/Qt5.14.2 && cd ~/Qt5.14.2
+          aqt install-qt linux desktop 5.14.2 gcc_64 --outputdir . --modules qtcharts qtdatavis3d qtnetworkauth qtpurchasing qtscript qtwebengine qtwebglplugin
+
+      - name: Build Yosys from source
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get install -y build-essential libreadline-dev gawk tcl-dev libffi-dev graphviz xdot pkg-config libboost-system-dev libboost-python-dev libboost-filesystem-dev
+          curl -L https://github.com/YosysHQ/yosys/archive/yosys-0.9.tar.gz -o yosys.tar.gz
+          tar -xzf yosys.tar.gz
+          cd yosys-yosys-0.9
+          sed -i '1i #include <limits>' passes/sat/freduce.cc
+          ABCREV=$(grep -m1 '^ABCREV' Makefile | awk '{print $3}' || true)
+          if [ -n "$ABCREV" ] && [ "$ABCREV" != "default" ]; then
+            if curl -fL "https://github.com/berkeley-abc/abc/archive/${ABCREV}.tar.gz" -o abc.tar.gz 2>/dev/null; then
+              tar -xzf abc.tar.gz
+              mv "abc-${ABCREV}" abc
+            else
+              git clone https://github.com/berkeley-abc/abc.git abc
+              cd abc && git checkout "$ABCREV" && cd ..
+            fi
+          else
+            git clone --depth 1 https://github.com/berkeley-abc/abc.git abc
+          fi
+          echo "ABCREV = default" >> Makefile.conf
+          make config-gcc
+          make -j$(nproc)
+          sudo make install
 
       - name: Install macOS system dependencies
         if: matrix.platform == 'macos'
@@ -116,6 +159,7 @@ jobs:
         shell: bash
         env:
           FDE_SOURCE_DIR: ${{ github.workspace }}/FDE-Source
+          IP_GENERATOR_DIR: ${{ github.workspace }}/IP-Generator
           UFDE_BUILD_FDE_VIEWER: ${{ matrix.build_fde_viewer }}
           ICU4C_PREFIX: ${{ matrix.platform == 'macos' && '/opt/homebrew/opt/icu4c' || '' }}
           UFDE_SIDECAR_ARCHIVE_URL: ${{ secrets[matrix.sidecar_url_secret] }}

@@ -146,19 +146,75 @@ download_sidecar_archive() {
 }
 
 build_ip_tools() {
-  cargo build \
-    --manifest-path "$IP_TOOLS_MANIFEST" \
-    --release \
-    --target "$target_triple"
+  if [[ "$platform" == "linux" ]]; then
+    cargo build \
+      --manifest-path "$IP_TOOLS_MANIFEST" \
+      --release \
+      --target "$target_triple" \
+      --bin viewer
+  else
+    cargo build \
+      --manifest-path "$IP_TOOLS_MANIFEST" \
+      --release \
+      --target "$target_triple"
+  fi
 
   local target_dir="$ROOT_DIR/src-tauri/ip-tools/target/$target_triple/release"
-  cp "$target_dir/ip_generator$exe_suffix" "$BIN_DIR/ip-generator/ip_generator-$target_triple$exe_suffix"
-  cp "$target_dir/img2mif$exe_suffix" "$BIN_DIR/ip-generator/img2mif-$target_triple$exe_suffix"
-  chmod +x "$BIN_DIR/ip-generator/ip_generator-$target_triple$exe_suffix" \
-    "$BIN_DIR/ip-generator/img2mif-$target_triple$exe_suffix" 2>/dev/null || true
+
+  if [[ "$platform" != "linux" ]]; then
+    cp "$target_dir/ip_generator$exe_suffix" "$BIN_DIR/ip-generator/ip_generator-$target_triple$exe_suffix"
+    cp "$target_dir/img2mif$exe_suffix" "$BIN_DIR/ip-generator/img2mif-$target_triple$exe_suffix"
+    chmod +x "$BIN_DIR/ip-generator/ip_generator-$target_triple$exe_suffix" \
+      "$BIN_DIR/ip-generator/img2mif-$target_triple$exe_suffix" 2>/dev/null || true
+  fi
 
   cp "$target_dir/viewer$exe_suffix" "$BIN_DIR/fde-cli/viewer-$target_triple$exe_suffix"
   chmod +x "$BIN_DIR/fde-cli/viewer-$target_triple$exe_suffix" 2>/dev/null || true
+}
+
+build_ip_generator() {
+  if [[ "$platform" != "linux" ]]; then
+    return 0
+  fi
+
+  local ip_gen_dir="${IP_GENERATOR_DIR:-}"
+  if [[ -z "$ip_gen_dir" ]]; then
+    if [[ -d "$ROOT_DIR/IP-Generator" ]]; then
+      ip_gen_dir="$ROOT_DIR/IP-Generator"
+    elif [[ -d "$ROOT_DIR/../IP-Generator" ]]; then
+      ip_gen_dir="$ROOT_DIR/../IP-Generator"
+    else
+      return 0
+    fi
+  fi
+
+  if [[ ! -d "$ip_gen_dir" ]]; then
+    return 0
+  fi
+
+  local has_all=1
+  for name in ip_generator img2mif; do
+    if [[ ! -f "$BIN_DIR/ip-generator/$name-$target_triple$exe_suffix" ]]; then
+      has_all=0
+      break
+    fi
+  done
+  if [[ "$has_all" -eq 1 ]]; then
+    echo "IP-Generator sidecars already exist; skipping build."
+    return 0
+  fi
+
+  echo "Building IP-Generator sidecars from $ip_gen_dir."
+  cd "$ip_gen_dir"
+  pyinstaller ip_generator.spec
+  pyinstaller img2mif.spec
+  cd "$ROOT_DIR"
+
+  local dist_dir="$ip_gen_dir/dist"
+  cp "$dist_dir/ip_generator$exe_suffix" "$BIN_DIR/ip-generator/ip_generator-$target_triple$exe_suffix"
+  cp "$dist_dir/img2mif$exe_suffix" "$BIN_DIR/ip-generator/img2mif-$target_triple$exe_suffix"
+  chmod +x "$BIN_DIR/ip-generator/ip_generator-$target_triple$exe_suffix" \
+    "$BIN_DIR/ip-generator/img2mif-$target_triple$exe_suffix" 2>/dev/null || true
 }
 
 copy_with_suffix() {
@@ -209,7 +265,14 @@ prepare_fde_from_source() {
 
   local build_dir="${FDE_BUILD_DIR:-$fde_source_dir/build-codex-$target_triple}"
   echo "Building FDE CLI sidecars from $fde_source_dir."
-  local cmake_args=(-DVIEWER="$build_viewer")
+  local cmake_args=(-DVIEWER="$build_viewer" -DCMAKE_BUILD_TYPE=Release)
+  if [[ "$platform" == "linux" && "$build_viewer" == "ON" ]]; then
+    cmake_args+=(
+      -DQt5_DIR="$HOME/Qt5.14.2/5.14.2/gcc_64/lib/cmake/Qt5"
+      -DCMAKE_INSTALL_RPATH='$ORIGIN/../libs'
+      -DCMAKE_BUILD_WITH_INSTALL_RPATH=TRUE
+    )
+  fi
   if [[ "$platform" == "macos" ]]; then
     local icu4c_prefix="${ICU4C_PREFIX:-}"
     if [[ -z "$icu4c_prefix" ]] && command -v brew >/dev/null 2>&1; then
@@ -221,6 +284,52 @@ prepare_fde_from_source() {
         -DCMAKE_SHARED_LINKER_FLAGS="-L$icu4c_prefix/lib"
       )
     fi
+  fi
+
+  if [[ "$platform" == "linux" ]]; then
+    local build_dir="$fde_source_dir/build"
+    echo "Building FDE from source (Linux) at $build_dir"
+    mkdir -p "$build_dir"
+    cd "$build_dir"
+    cmake -GNinja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DVIEWER=ON \
+      -DQt5_DIR="$HOME/Qt5.14.2/5.14.2/gcc_64/lib/cmake/Qt5" \
+      -DCMAKE_INSTALL_RPATH='$ORIGIN/libs' \
+      -DCMAKE_BUILD_WITH_INSTALL_RPATH=TRUE \
+      ..
+    ninja
+    cmake --install .
+
+    if command -v patchelf >/dev/null 2>&1; then
+      if [[ -f ./viewer/plugins/platforms/libqxcb.so ]]; then
+        patchelf --set-rpath '$ORIGIN/../../libs' ./viewer/plugins/platforms/libqxcb.so
+      fi
+      if [[ -f ./viewer/FDE ]]; then
+        mv ./viewer/FDE ./viewer/viewer
+      fi
+      if [[ -f ./viewer/viewer ]]; then
+        patchelf --set-rpath '$ORIGIN/libs' ./viewer/viewer
+      fi
+    fi
+
+    cd "$ROOT_DIR"
+
+    copy_with_suffix "$build_dir/bitgen/bitgen$exe_suffix" "$BIN_DIR/fde-cli/bitgen-$target_triple$exe_suffix" || true
+    copy_with_suffix "$build_dir/vl2xml/import$exe_suffix" "$BIN_DIR/fde-cli/import-$target_triple$exe_suffix" || true
+    copy_with_suffix "$build_dir/mapping/map$exe_suffix" "$BIN_DIR/fde-cli/map-$target_triple$exe_suffix" || true
+    copy_with_suffix "$build_dir/NLFiner/nlfiner$exe_suffix" "$BIN_DIR/fde-cli/nlfiner-$target_triple$exe_suffix" || true
+    copy_with_suffix "$build_dir/packing/pack$exe_suffix" "$BIN_DIR/fde-cli/pack-$target_triple$exe_suffix" || true
+    copy_with_suffix "$build_dir/placer/place$exe_suffix" "$BIN_DIR/fde-cli/place-$target_triple$exe_suffix" || true
+    copy_with_suffix "$build_dir/router/route$exe_suffix" "$BIN_DIR/fde-cli/route-$target_triple$exe_suffix" || true
+    copy_with_suffix "$build_dir/sta/sta$exe_suffix" "$BIN_DIR/fde-cli/sta-$target_triple$exe_suffix" || true
+
+    mkdir -p "$ROOT_DIR/src-tauri/linux-bin"
+    if [[ -f "$build_dir/viewer/viewer" ]]; then
+      copy_with_suffix "$build_dir/viewer/viewer" "$ROOT_DIR/src-tauri/linux-bin/fde-viewer" || true
+    fi
+
+    return 0
   fi
 
   cmake -S "$fde_source_dir" -B "$build_dir" -G Ninja "${cmake_args[@]}"
@@ -243,6 +352,10 @@ prepare_fde_from_source() {
   if [[ "$build_viewer" == "ON" ]]; then
     mkdir -p "$ROOT_DIR/src-tauri/linux-bin"
     copy_with_suffix "$build_dir/viewer/FDE$exe_suffix" "$ROOT_DIR/src-tauri/linux-bin/fde-viewer$exe_suffix" || true
+
+    if command -v patchelf >/dev/null 2>&1; then
+      patchelf --set-rpath '$ORIGIN/../libs' "$ROOT_DIR/src-tauri/linux-bin/fde-viewer$exe_suffix" 2>/dev/null || true
+    fi
   fi
 }
 
@@ -377,6 +490,7 @@ EOF
 
 download_sidecar_archive
 build_ip_tools
+build_ip_generator
 prepare_fde_from_source
 prepare_windows_legacy_sidecars
 prepare_yosys_from_path
