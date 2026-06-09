@@ -80,23 +80,10 @@ jobs:
       - name: Build Yosys from source
         run: |
           sudo apt-get install -y build-essential libreadline-dev gawk tcl-dev libffi-dev graphviz xdot pkg-config libboost-system-dev libboost-python-dev libboost-filesystem-dev
-          curl -L https://github.com/YosysHQ/yosys/archive/yosys-0.9.tar.gz -o yosys.tar.gz
-          tar -xzf yosys.tar.gz
-          cd yosys-yosys-0.9
+          git clone --branch yosys-0.9 https://github.com/YosysHQ/yosys.git yosys
+          cd yosys
+          git submodule update --init
           sed -i '1i #include <limits>' passes/sat/freduce.cc
-          ABCREV=$(grep -m1 '^ABCREV' Makefile | awk '{print $3}' || true)
-          if [ -n "$ABCREV" ] && [ "$ABCREV" != "default" ]; then
-            if curl -fL "https://github.com/berkeley-abc/abc/archive/${ABCREV}.tar.gz" -o abc.tar.gz 2>/dev/null; then
-              tar -xzf abc.tar.gz
-              mv "abc-${ABCREV}" abc
-            else
-              git clone https://github.com/berkeley-abc/abc.git abc
-              cd abc && git checkout "$ABCREV" && cd ..
-            fi
-          else
-            git clone --depth 1 https://github.com/berkeley-abc/abc.git abc
-          fi
-          echo "ABCREV = default" >> Makefile.conf
           make config-gcc
           make -j$(nproc)
           sudo make install
