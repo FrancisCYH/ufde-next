@@ -1,5 +1,5 @@
 import { platform } from "@tauri-apps/plugin-os";
-import { SourceFile } from "../model/project";
+import { ProjectInfo, SourceFile } from "../model/project";
 import { DialogFilter } from "@tauri-apps/plugin-dialog";
 import { open } from "@tauri-apps/plugin-dialog";
 
@@ -14,6 +14,11 @@ export async function getDirOfFile(path: string) {
   } else {
     return path.split("/").slice(0, -1).join("/") + "/";
   }
+}
+
+export async function getErrorLogPath(project: ProjectInfo) {
+  const projectDir = await getDirOfFile(project.path);
+  return projectDir + "error.txt";
 }
 
 export async function getSourceFilesByDialog({ dialogFilter }: { dialogFilter: DialogFilter[] | undefined }) {

@@ -15,11 +15,6 @@ export interface RAMConfigData {
   ramType: string;
 }
 
-export interface PLLConfigData {
-  divideValue: number;
-  fpgaGates: number;
-}
-
 export interface BaseIPConfigProps {
   onConfigChange?: (config: any) => void;
 }

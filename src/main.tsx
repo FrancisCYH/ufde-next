@@ -19,7 +19,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <MantineProvider theme={theme}>
       <ModalsProvider>
-        <Notifications />
+        <Notifications w={520} />
         <App />
       </ModalsProvider>
     </MantineProvider>

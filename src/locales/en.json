@@ -190,6 +190,7 @@
         "message_prefix": "Running ",
         "message_suffix": ", Please wait."
       },
+      "errorLogLocation": "Error details located at: ",
       "success": {
         "title": "Running Successfully",
         "message_prefix": "",

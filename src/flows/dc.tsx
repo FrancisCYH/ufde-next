@@ -1,12 +1,14 @@
 import { resolveResource } from "@tauri-apps/api/path";
 import { ProjectInfo } from "../model/project";
 import { Command, open as openPath } from "@tauri-apps/plugin-shell";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { ActionIcon, Combobox, InputBase, SegmentedControl, Tooltip, useCombobox } from "@mantine/core";
 import { useContext, useEffect, useState } from "react";
 import { TbArrowAutofitDown, TbChevronDown, TbFileText, TbEye } from "react-icons/tb";
 import { SettingsItem } from "../pages/FlowPage";
 import { useTranslation } from "react-i18next";
-import { getDirOfFile } from "../utils/utils";
+import { getDirOfFile, getErrorLogPath } from "../utils/utils";
+import i18n from "i18next";
 import { ProjectContext } from "../App";
 import { invoke } from "@tauri-apps/api/core";
 import { showFailedNotification, showSuccessNotification } from "../pages/Notifies";
@@ -288,7 +290,13 @@ export async function runDCSTAFlowCommand(project: ProjectInfo) {
 
   const nlfinerRes = await nlfinerCommand.execute();
   if (nlfinerRes.code !== 0) {
-    throw new Error("nlfiner failed: " + nlfinerRes.stderr);
+    const logPath = await getErrorLogPath(project);
+    try {
+      await writeTextFile(logPath, nlfinerRes.stdout + "\n" + nlfinerRes.stderr);
+    } catch (e) {
+      console.error("Failed to write log file: " + logPath, e);
+    }
+    throw new Error(i18n.t("flow.notify.errorLogLocation") + logPath);
   }
 
   const staCommand = Command.sidecar(

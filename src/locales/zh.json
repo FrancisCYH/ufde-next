@@ -190,6 +190,7 @@
         "message_prefix": "正在运行",
         "message_suffix": "，请稍等"
       },
+      "errorLogLocation": "报错信息位于: ",
       "success": {
         "title": "运行成功",
         "message_prefix": "",

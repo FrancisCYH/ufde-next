@@ -27,7 +27,7 @@ import { Command } from "@tauri-apps/plugin-shell";
 import { useContext } from "react";
 import { ProjectContext } from "../App";
 import { useEffect } from "react";
-import { exists } from "@tauri-apps/plugin-fs";
+import { exists, writeTextFile } from "@tauri-apps/plugin-fs";
 import {
   update2FailedNotification,
   update2SuccessNotification,
@@ -37,7 +37,7 @@ import { notifications } from "@mantine/notifications";
 import { ProjectInfo } from "../model/project";
 import { useCallback } from "react";
 import { dcFlows } from "../flows/dc";
-import { getDirOfFile } from "../utils/utils";
+import { getDirOfFile, getErrorLogPath } from "../utils/utils";
 import { yosysFlows } from "../flows/yosys";
 
 const flowData: {
@@ -129,7 +129,7 @@ export function Flow(props: AbstractFlowProps) {
         </Group>
       </Flex>
       {props.status && (
-        <Collapse expanded={collapaseOpened}>
+        <Collapse in={collapaseOpened}>
           <Textarea
             value={props.status}
             size="sm"
@@ -199,14 +199,14 @@ function FlowInstance(props: FlowInfo & FlowProps) {
       return;
     }
     if (command) {
-      command.stdout.on("data", (data) => {
-        console.log(data);
-        setStatusText((prevTest) => prevTest + data);
-      });
-      command.stderr.on("data", (data) => {
-        console.log(data);
-        setStatusText((prevTest) => prevTest + data);
-      });
+      const logPath = await getErrorLogPath(projectContext.project!);
+      const writeLog = async (output: string) => {
+        try {
+          await writeTextFile(logPath, output);
+        } catch (e) {
+          console.error("Failed to write log file: " + logPath, e);
+        }
+      };
 
       const notifyId = notifications.show({
         title: t("flow.notify.running.title"),
@@ -234,21 +234,16 @@ function FlowInstance(props: FlowInfo & FlowProps) {
         update2FailedNotification({
           id: notifyId,
           title: t("flow." + props.name + ".title"),
-          message:
-            t("flow.notify.failed.message_prefix") +
-            t("flow." + props.name + ".title") +
-            t("flow.notify.failed.message_suffix") +
-            ": " +
-            err,
+          message: String(err),
         });
       };
 
-      command.execute().then((res) => {
+      command.execute().then(async (res) => {
+        const output = [res.stdout, res.stderr].filter(Boolean).join("\n");
+        setStatusText(output);
         if (res.code !== 0 && !props.allowNonZeroExit) {
-          let msg = "Code = " + res.code;
-          if (res.stderr) msg += "\nstderr: " + res.stderr;
-          if (res.stdout) msg += "\nstdout: " + res.stdout;
-          onError(msg);
+          await writeLog(output);
+          onError(t("flow.notify.errorLogLocation") + logPath);
         } else {
           onSuccess();
         }
@@ -381,22 +376,24 @@ function FlowPage() {
       update2FailedNotification({
         id: notifyId,
         title: t("flow." + flow.name + ".title"),
-        message:
-          t("flow.notify.failed.message_prefix") +
-          t("flow." + flow.name + ".title") +
-          t("flow.notify.failed.message_suffix") +
-          ": " +
-          err,
+        message: String(err),
       });
     };
 
     if (command) {
-      await command.execute().then((res) => {
+      const logPath = await getErrorLogPath(project!);
+      const writeLog = async (output: string) => {
+        try {
+          await writeTextFile(logPath, output);
+        } catch (e) {
+          console.error("Failed to write log file: " + logPath, e);
+        }
+      };
+
+      await command.execute().then(async (res) => {
         if (res.code !== 0 && !flow.allowNonZeroExit) {
-          let msg = "Code = " + res.code;
-          if (res.stderr) msg += "\nstderr: " + res.stderr;
-          if (res.stdout) msg += "\nstdout: " + res.stdout;
-          onError(msg);
+          await writeLog([res.stdout, res.stderr].filter(Boolean).join("\n"));
+          onError(t("flow.notify.errorLogLocation") + logPath);
         } else {
           onSuccess();
         }

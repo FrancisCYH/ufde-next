@@ -13,9 +13,11 @@ import {
 } from "../pages/Notifies";
 import { invoke } from "@tauri-apps/api/core";
 import { useContext, useEffect, useState } from "react";
-import { getDirOfFile } from "../utils/utils";
+import { getDirOfFile, getErrorLogPath } from "../utils/utils";
+import i18n from "i18next";
 import { ProjectContext } from "../App";
 import { Command, open as openPath } from "@tauri-apps/plugin-shell";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { resolveResource } from "@tauri-apps/api/path";
 import { useTranslation } from "react-i18next";
 import { ProjectInfo } from "../model/project";
@@ -327,7 +329,13 @@ export async function runYosysSTAFlowCommand(project: ProjectInfo) {
 
   const nlfinerRes = await nlfinerCommand.execute();
   if (nlfinerRes.code !== 0) {
-    throw new Error("nlfiner failed: " + nlfinerRes.stderr);
+    const logPath = await getErrorLogPath(project);
+    try {
+      await writeTextFile(logPath, nlfinerRes.stdout + "\n" + nlfinerRes.stderr);
+    } catch (e) {
+      console.error("Failed to write log file: " + logPath, e);
+    }
+    throw new Error(i18n.t("flow.notify.errorLogLocation") + logPath);
   }
 
   const staCommand = Command.sidecar(
@@ -582,12 +590,6 @@ export const yosysFlows = [
     extraActions: <YosysViewRouteAction />,
   },
   {
-    name: "yosys.genbit",
-    target_file: "yosys_bit.bit",
-    runFunc: runYosysGenBitFlowCommand,
-    extraActions: <YosysDownloadBitAction />,
-  },
-  {
     name: "yosys.sta",
     target_file: "yosys_sta_out.rp",
     runFunc: runYosysSTAFlowCommand,
@@ -598,5 +600,11 @@ export const yosysFlows = [
         <YosysViewSTAReportAction />
       </>
     ),
+  },
+  {
+    name: "yosys.genbit",
+    target_file: "yosys_bit.bit",
+    runFunc: runYosysGenBitFlowCommand,
+    extraActions: <YosysDownloadBitAction />,
   },
 ];

@@ -1,12 +1,21 @@
+import { Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { TbX, TbCheck, TbExclamationMark } from "react-icons/tb";
+
+function wrapMessage(message: string) {
+  return (
+    <Text size="sm" style={{ wordBreak: "break-all", whiteSpace: "pre-wrap" }}>
+      {message}
+    </Text>
+  );
+}
 
 export function showFailedNotification({ message, title }: { message: string; title: string }) {
   notifications.show({
     icon: <TbX />,
     color: "red",
     title: title,
-    message: message,
+    message: wrapMessage(message),
   });
 }
 
@@ -15,7 +24,7 @@ export function showWarningNotification({ message, title }: { message: string; t
     icon: <TbExclamationMark />,
     color: "yellow.5",
     title: title,
-    message: message,
+    message: wrapMessage(message),
   });
 }
 
@@ -24,7 +33,7 @@ export function showSuccessNotification({ message, title }: { message: string; t
     icon: <TbCheck />,
     color: "green",
     title: title,
-    message: message,
+    message: wrapMessage(message),
     autoClose: 3000,
   });
 }
@@ -35,7 +44,7 @@ export function update2SuccessNotification({ id, message, title }: { id: string;
     icon: <TbCheck />,
     color: "green",
     title: title,
-    message: message,
+    message: wrapMessage(message),
     loading: false,
     autoClose: 3000,
   });
@@ -47,7 +56,7 @@ export function update2FailedNotification({ id, message, title }: { id: string; 
     icon: <TbX />,
     color: "red",
     title: title,
-    message: message,
+    message: wrapMessage(message),
     loading: false,
   });
 }

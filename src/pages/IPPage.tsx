@@ -11,10 +11,9 @@ import {
   Text,
   Box,
 } from '@mantine/core';
-import { TbCpu, TbDeviceFloppy, TbClock } from 'react-icons/tb';
+import { TbCpu, TbDeviceFloppy } from 'react-icons/tb';
 import {
   RAMConfig,
-  PLLConfig,
   IPCore,
   BaseIPConfigProps,
 } from '../ipcatlog';
@@ -26,13 +25,6 @@ const ipCores: (IPCore & { component: React.ComponentType<BaseIPConfigProps> })[
     description: 'ip.ram.description',
     icon: TbDeviceFloppy,
     component: RAMConfig,
-  },
-  {
-    id: 'pll',
-    name: 'PLL',
-    description: 'ip.pll.description',
-    icon: TbClock,
-    component: PLLConfig,
   },
 ];
 
@@ -53,7 +45,7 @@ function IPPage() {
       <Title order={2} mb="md">{t('ip.title')}</Title>
       <Text c="dimmed" mb="lg">{t('ip.subtitle')}</Text>
 
-      <Grid gap="md" h="calc(100% - 80px)">
+      <Grid gutter="md" h="calc(100% - 80px)">
         <Grid.Col span={4}>
           <Card shadow="sm" withBorder h="100%" p="md">
             <Title order={4} mb="md">{t('ip.available')}</Title>
